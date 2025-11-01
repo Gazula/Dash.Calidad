@@ -38,8 +38,8 @@ def descargar_excel_desde_drive(file_id: str) -> pd.DataFrame:
 def procesar_datos():
     """Descarga los datos desde Drive o desde archivos locales, y realiza la unión por EAN."""
     # 🔹 IDs de Drive (reemplazá por los tuyos si querés usar Drive)
-    ID_BASE_DATOS = "TU_ID_BASE_DATOS"
-    ID_RECLAMOS = "TU_ID_RECLAMOS"
+    ID_BASE_DATOS = "1Hp77ACYzKZnF3azHjuFrOTB_EaqvrUn5rXWjBYcOKcg"
+    ID_RECLAMOS = "1M262Vlx7KvBll3jzr9XYIN6iOPayDNfK_s_8RzipF4Y"
 
     # 🔹 Intentar descargar desde Drive
     df_base = descargar_excel_desde_drive(ID_BASE_DATOS)
@@ -216,3 +216,4 @@ async def dashboard(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
