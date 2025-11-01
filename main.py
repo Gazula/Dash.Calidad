@@ -14,8 +14,8 @@ templates = Jinja2Templates(directory="templates")
 
 # --- IDs de archivos en Google Drive ---
 # ⚠️ Reemplazá estos IDs por los tuyos
-ID_BASE = "TU_ID_DE_BASE_DE_DATOS"
-ID_RECLAMOS = "TU_ID_DE_RECLAMOS"
+ID_BASE = "1gqhG9veHHEO8jYlO_A1jF4b8Gnp6-bGe"
+ID_RECLAMOS = "1LmTnbbKA4gb8VETWGm7tl2euKBJpTRRJ"
 
 def descargar_archivos_desde_drive():
     """Descarga automáticamente los archivos más recientes desde Google Drive."""
@@ -152,3 +152,4 @@ async def dashboard(request: Request):
         "graf_alertas": graf_alertas,
         "alertas_tabla": df_alertas.head(20).to_html(classes="table table-striped", index=False)
     })
+
