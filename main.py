@@ -1,219 +1,202 @@
+# ===============================
+# main.py — versión local sin Drive
+# ===============================
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 import pandas as pd
 import plotly.express as px
-import io
-import requests
+import os
 
-# ====================================
-# 🔧 CONFIGURACIÓN INICIAL DEL SERVIDOR
-# ====================================
-
+# Crear aplicación
 app = FastAPI()
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+# -------------------------------
+# CONFIGURACIÓN DE RUTAS LOCALES
+# -------------------------------
+BASE_DATOS_PATH = "bases/Base de datos.xlsx"
+RECLAMOS_PATH = "bases/Reclamos Ene-Sep 2025.xlsx"
 
-# ====================================
-# 📂 FUNCIONES AUXILIARES
-# ====================================
-
-def descargar_excel_desde_drive(file_id: str) -> pd.DataFrame:
-    """Descarga un archivo Excel desde Google Drive y lo devuelve como DataFrame."""
-    url = f"https://drive.google.com/uc?export=download&id={file_id}"
+# -------------------------------
+# FUNCIÓN PARA CARGAR LOS DATOS
+# -------------------------------
+def cargar_datos_local():
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-        df = pd.read_excel(io.BytesIO(response.content))
-        print(f"✅ Archivo descargado correctamente desde Drive ({file_id})")
+        if not os.path.exists(BASE_DATOS_PATH):
+            raise FileNotFoundError(f"No se encontró el archivo {BASE_DATOS_PATH}")
+        if not os.path.exists(RECLAMOS_PATH):
+            raise FileNotFoundError(f"No se encontró el archivo {RECLAMOS_PATH}")
+
+        df_base = pd.read_excel(BASE_DATOS_PATH)
+        df_reclamos = pd.read_excel(RECLAMOS_PATH)
+
+        # Unificar columnas de reclamos con base de datos
+        df = pd.merge(df_reclamos, df_base, on="EAN", how="left")
+
+        # Normalizar nombres de columnas
+        df.columns = df.columns.str.strip()
+
+        # Aseguramos que las columnas necesarias existan
+        columnas_necesarias = [
+            "Número del caso",
+            "Fecha/hora de apertura",
+            "Código de sucursal",
+            "Respuesta tienda",
+            "Definición equipo calidad",
+            "Estado",
+            "EAN",
+            "Categoría",
+            "Lote nro.",
+            "Fecha de vencimiento",
+            "Descripción",
+            "Razón social"
+        ]
+        faltantes = [c for c in columnas_necesarias if c not in df.columns]
+        if faltantes:
+            raise KeyError(f"Faltan las columnas: {faltantes}")
+
+        # Separar fecha y hora
+        if "Fecha/hora de apertura" in df.columns:
+            df["Fecha apertura"] = pd.to_datetime(df["Fecha/hora de apertura"], errors="coerce").dt.date
+            df["Hora apertura"] = pd.to_datetime(df["Fecha/hora de apertura"], errors="coerce").dt.time
+
         return df
+
     except Exception as e:
-        print(f"⚠️ Error descargando archivo desde Drive ({file_id}): {e}")
+        print(f"❌ Error al cargar datos locales: {e}")
+        return pd.DataFrame()  # Devuelve vacío si hay error
+
+
+# -------------------------------
+# FUNCIÓN PARA DETECTAR ALERTAS
+# -------------------------------
+def detectar_alertas(df):
+    if df.empty:
         return pd.DataFrame()
 
+    # Detectar EAN + Lote con reclamos en múltiples tiendas
+    conteo = (
+        df.groupby(["EAN", "Lote nro."])["Código de sucursal"]
+        .nunique()
+        .reset_index()
+        .rename(columns={"Código de sucursal": "Cantidad_tiendas"})
+    )
 
-def procesar_datos():
-    """Descarga los datos desde Drive o desde archivos locales, y realiza la unión por EAN."""
-    # 🔹 IDs de Drive (reemplazá por los tuyos si querés usar Drive)
-    ID_BASE_DATOS = "1Hp77ACYzKZnF3azHjuFrOTB_EaqvrUn5rXWjBYcOKcg"
-    ID_RECLAMOS = "1M262Vlx7KvBll3jzr9XYIN6iOPayDNfK_s_8RzipF4Y"
+    # Marcar tipo de alerta
+    conteo["Tipo"] = conteo["Cantidad_tiendas"].apply(
+        lambda x: "Aviso" if x == 2 else ("Alerta" if x >= 3 else "")
+    )
 
-    # 🔹 Intentar descargar desde Drive
-    df_base = descargar_excel_desde_drive(ID_BASE_DATOS)
-    df_reclamos = descargar_excel_desde_drive(ID_RECLAMOS)
-
-    # 🔹 Si están vacíos, intentar usar archivos locales
-    if df_base.empty or df_reclamos.empty:
-        try:
-            df_base = pd.read_excel("Base de datos.xlsx")
-            df_reclamos = pd.read_excel("Reclamos Ene-Sep 2025.xlsx")
-            print("📂 Archivos locales cargados correctamente.")
-        except Exception as e:
-            print(f"⚠️ Error cargando archivos locales: {e}")
-            return pd.DataFrame()
-
-    # 🔹 Unir por EAN
-    df = pd.merge(df_reclamos, df_base[["EAN", "Descripción", "Razón social"]],
-                  on="EAN", how="left")
-
-    # 🔹 Rellenar vacíos
-    df["Descripción"] = df["Descripción"].fillna("No tipificado")
-    df["Razón social"] = df["Razón social"].fillna("No tipificado")
-
-    # 🔹 Separar fecha y hora
-    if "Fecha/hora de apertura" in df.columns:
-        df["Fecha apertura"] = pd.to_datetime(df["Fecha/hora de apertura"], errors="coerce").dt.date
-        df["Hora apertura"] = pd.to_datetime(df["Fecha/hora de apertura"], errors="coerce").dt.time
-
-    return df
+    return conteo[conteo["Tipo"] != ""]
 
 
-def detectar_alertas(df: pd.DataFrame) -> pd.DataFrame:
-    """Detecta reclamos repetidos con mismo EAN y Lote en distintas tiendas."""
-    try:
-        if "EAN" not in df.columns or "Lote nro." not in df.columns:
-            return pd.DataFrame()
-
-        agrupado = df.groupby(["EAN", "Lote nro."])["Código de sucursal"].nunique().reset_index()
-        agrupado.columns = ["EAN", "Lote nro.", "Cantidad_tiendas"]
-        agrupado = agrupado[agrupado["Cantidad_tiendas"] > 1]
-
-        def tipo_alerta(x):
-            if x >= 3:
-                return "🚨 Alerta"
-            elif x == 2:
-                return "⚠️ Aviso"
-            else:
-                return "-"
-
-        agrupado["Tipo"] = agrupado["Cantidad_tiendas"].apply(tipo_alerta)
-        return agrupado
-    except Exception as e:
-        print(f"⚠️ Error detectando alertas: {e}")
-        return pd.DataFrame()
-
-
-# ====================================
-# 🧭 ENDPOINT PRINCIPAL (DASHBOARD)
-# ====================================
-
+# -------------------------------
+# RUTA PRINCIPAL — DASHBOARD
+# -------------------------------
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    df = procesar_datos()
+    df = cargar_datos_local()
+
+    if df.empty:
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {"request": request, "error_message": "No se pudieron cargar los datos locales."}
+        )
+
     df_alertas = detectar_alertas(df)
 
-    # --- KPIs ---
-    total_reclamos = len(df)
-    total_avisos = df_alertas[df_alertas["Tipo"] == "⚠️ Aviso"].shape[0]
-    total_alertas = df_alertas[df_alertas["Tipo"] == "🚨 Alerta"].shape[0]
-    top_proveedor = df["Razón social"].value_counts().idxmax() if not df["Razón social"].isna().all() else "-"
-    top_producto = df["Descripción"].value_counts().idxmax() if not df["Descripción"].isna().all() else "-"
-
-    # ==========================
-    # 🔹 Gráfico 1 — Proveedores
-    # ==========================
+    # =====================
+    #     GRÁFICO 1 — Proveedores con más reclamos
+    # =====================
     try:
-        top_proveedores = df["Razón social"].value_counts().reset_index()
-        top_proveedores.columns = ["Razón social", "count"]
-
+        top_proveedores = (
+            df["Razón social"]
+            .value_counts()
+            .head(10)
+            .reset_index()
+            .rename(columns={"index": "Proveedor", "Razón social": "Cantidad"})
+        )
         graf_proveedores = px.bar(
-            top_proveedores.head(10),
-            x="Razón social",
-            y="count",
-            labels={"Razón social": "Proveedor", "count": "Cantidad de Reclamos"},
-            title="Top 10 Proveedores con más Reclamos",
-        )
-        graf_proveedores.update_layout(
-            xaxis_tickangle=-45,
-            title_x=0.5,
-            margin=dict(l=40, r=40, t=60, b=100),
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
-        graf_proveedores = graf_proveedores.to_html(full_html=False)
-
+            top_proveedores,
+            x="Proveedor",
+            y="Cantidad",
+            title="Top 10 Proveedores con más reclamos",
+            labels={"Proveedor": "Proveedor", "Cantidad": "Cantidad de reclamos"},
+            text="Cantidad"
+        ).to_html(full_html=False)
     except Exception as e:
-        print(f"⚠️ Error generando gráfico de proveedores: {e}")
-        graf_proveedores = "<p>Error al generar gráfico de proveedores.</p>"
+        graf_proveedores = f"<p>Error generando gráfico de proveedores: {e}</p>"
 
-    # ==========================
-    # 🔹 Gráfico 2 — Productos
-    # ==========================
+    # =====================
+    #     GRÁFICO 2 — Productos más reclamados
+    # =====================
     try:
-        top_productos = df["Descripción"].value_counts().reset_index()
-        top_productos.columns = ["Descripción", "count"]
-
+        top_productos = (
+            df["Descripción"]
+            .value_counts()
+            .head(10)
+            .reset_index()
+            .rename(columns={"index": "Producto", "Descripción": "Cantidad"})
+        )
         graf_productos = px.bar(
-            top_productos.head(10),
-            x="Descripción",
-            y="count",
-            labels={"Descripción": "Producto", "count": "Cantidad de Reclamos"},
-            title="Top 10 Productos más Reclamados",
-        )
-        graf_productos.update_layout(
-            xaxis_tickangle=-45,
-            title_x=0.5,
-            margin=dict(l=40, r=40, t=60, b=100),
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
-        graf_productos = graf_productos.to_html(full_html=False)
-
+            top_productos,
+            x="Producto",
+            y="Cantidad",
+            title="Top 10 Productos más reclamados",
+            labels={"Producto": "Producto", "Cantidad": "Cantidad de reclamos"},
+            text="Cantidad"
+        ).to_html(full_html=False)
     except Exception as e:
-        print(f"⚠️ Error generando gráfico de productos: {e}")
-        graf_productos = "<p>Error al generar gráfico de productos.</p>"
+        graf_productos = f"<p>Error generando gráfico de productos: {e}</p>"
 
-    # ==========================
-    # 🔹 Gráfico 3 — Alertas
-    # ==========================
+    # =====================
+    #     GRÁFICO 3 — Alertas
+    # =====================
     try:
-        if not df_alertas.empty:
-            graf_alertas = px.bar(
-                df_alertas,
-                x="EAN",
-                y="Cantidad_tiendas",
-                color="Tipo",
-                labels={
-                    "EAN": "Código EAN",
-                    "Cantidad_tiendas": "Cantidad de Tiendas",
-                    "Tipo": "Tipo de Alerta",
-                },
-                title="Alertas detectadas (EAN + Lote con reclamos en múltiples tiendas)",
-            )
-            graf_alertas.update_layout(
-                title_x=0.5,
-                margin=dict(l=40, r=40, t=60, b=100),
-                plot_bgcolor="rgba(0,0,0,0)",
-            )
-            graf_alertas = graf_alertas.to_html(full_html=False)
-        else:
-            graf_alertas = "<p>No se detectaron alertas.</p>"
-
+        graf_alertas = px.bar(
+            df_alertas,
+            x="EAN",
+            y="Cantidad_tiendas",
+            color="Tipo",
+            title="Alertas detectadas (EAN + Lote con reclamos en múltiples tiendas)",
+            labels={"EAN": "Código EAN", "Cantidad_tiendas": "Cantidad de tiendas"}
+        ).to_html(full_html=False)
     except Exception as e:
-        print(f"⚠️ Error generando gráfico de alertas: {e}")
-        graf_alertas = "<p>Error al generar gráfico de alertas.</p>"
+        graf_alertas = f"<p>Error generando gráfico de alertas: {e}</p>"
 
-    # --- Enviar todo al template ---
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "total_reclamos": total_reclamos,
-        "total_avisos": total_avisos,
-        "total_alertas": total_alertas,
-        "top_proveedor": top_proveedor,
-        "top_producto": top_producto,
-        "graf_proveedores": graf_proveedores,
-        "graf_productos": graf_productos,
-        "graf_alertas": graf_alertas,
-        "alertas_tabla": df_alertas.head(20).to_html(classes="table table-striped", index=False)
-    })
+    # =====================
+    #     KPI NUMÉRICOS
+    # =====================
+    total_reclamos = len(df)
+    total_proveedores = df["Razón social"].nunique()
+    total_productos = df["Descripción"].nunique()
+    total_avisos = len(df_alertas[df_alertas["Tipo"] == "Aviso"])
+    total_alertas = len(df_alertas[df_alertas["Tipo"] == "Alerta"])
+
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {
+            "request": request,
+            "graf_proveedores": graf_proveedores,
+            "graf_productos": graf_productos,
+            "graf_alertas": graf_alertas,
+            "total_reclamos": total_reclamos,
+            "total_proveedores": total_proveedores,
+            "total_productos": total_productos,
+            "total_avisos": total_avisos,
+            "total_alertas": total_alertas,
+            "error_message": None
+        }
+    )
 
 
-# ====================================
-# 🚀 EJECUCIÓN LOCAL
-# ====================================
-
+# -------------------------------
+# EJECUCIÓN LOCAL
+# -------------------------------
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
+    uvicorn.run(app, host="0.0.0.0", port=10000)
