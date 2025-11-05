@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ titulo }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; background-color: #f7f7f7; }
+    h1 { text-align: center; color: #333; }
+    .btn-volver { display: inline-block; margin-bottom: 20px; text-decoration: none;
+                  background-color: #007bff; color: white; padding: 8px 15px; border-radius: 5px; }
+    .btn-volver:hover { background-color: #0056b3; }
+    table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+    th { background-color: #f2f2f2; }
+    tr:hover { background-color: #f9f9f9; }
+  </style>
+</head>
+<body>
+  <a href="/" class="btn-volver">← Volver al Dashboard</a>
+  <h1>{{ titulo }}</h1>
+
+  {% if data and data|length > 0 %}
+  <table>
+    <thead>
+      <tr>
+        <th>EAN</th>
+        <th>Lote</th>
+        <th>Cantidad de tiendas</th>
+        <th>Tipo</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for fila in data %}
+        <tr>
+          <td>{{ fila.ean }}</td>
+          <td>{{ fila.lote_nro }}</td>
+          <td>{{ fila.Cantidad_tiendas }}</td>
+          <td>{{ fila.Tipo }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="text-align:center;">No se encontraron {{ tipo }} en este período.</p>
+  {% endif %}
+</body>
+</html>
