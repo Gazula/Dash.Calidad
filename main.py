@@ -13,12 +13,12 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Rutas locales de los archivos
+# Rutas locales
 BASE_PATH = "bases/Base de datos.xlsx"
 RECLAMOS_PATH = "bases/Reclamos Ene-Sep 2025.xlsx"
 
 # ==========================
-# FUNCIÓN PARA NORMALIZAR NOMBRES DE COLUMNAS
+# FUNCIONES AUXILIARES
 # ==========================
 def normalizar_col(col):
     col = str(col).strip().lower()
@@ -33,9 +33,6 @@ def buscar_col(df, posibles):
             return df_cols[normalizar_col(p)]
     return None
 
-# ==========================
-# CARGAR DATOS Y VALIDAR COLUMNAS
-# ==========================
 def cargar_datos_locales():
     try:
         df_base = pd.read_excel(BASE_PATH)
@@ -57,9 +54,9 @@ def cargar_datos_locales():
 
         mapeo = {}
         for key, posibles in columnas_requeridas.items():
-            col_encontrada = buscar_col(df_reclamos, posibles)
-            if col_encontrada:
-                mapeo[key] = col_encontrada
+            col = buscar_col(df_reclamos, posibles)
+            if col:
+                mapeo[key] = col
             else:
                 print(f"⚠️ No se encontró la columna esperada para: {key}")
 
@@ -75,22 +72,30 @@ def cargar_datos_locales():
             df["Fecha"] = pd.to_datetime(df["fecha_hora_apertura"], errors="coerce").dt.date
             df["Hora"] = pd.to_datetime(df["fecha_hora_apertura"], errors="coerce").dt.time
 
-        columnas_finales = [
-            "Fecha", "Hora", "codigo_sucursal", "respuesta_tienda", "definicion_calidad",
-            "estado", "ean", "categoria", "lote_nro", "fecha_vencimiento",
-            "descripcion", "razon_social"
-        ]
-        columnas_finales = [c for c in columnas_finales if c in df.columns]
-        df = df[columnas_finales]
-
         return df
 
     except Exception as e:
         print(f"❌ Error al cargar datos locales: {e}")
         return pd.DataFrame()
 
+def generar_alertas(df):
+    if df.empty or "ean" not in df.columns or "lote_nro" not in df.columns:
+        return pd.DataFrame(columns=["ean", "lote_nro", "Cantidad_tiendas", "Tipo"])
+
+    df_alertas = (
+        df.groupby(["ean", "lote_nro"])
+        .agg({"codigo_sucursal": "nunique"})
+        .reset_index()
+        .rename(columns={"codigo_sucursal": "Cantidad_tiendas"})
+    )
+
+    df_alertas["Tipo"] = df_alertas["Cantidad_tiendas"].apply(
+        lambda x: "⚠️ Alerta" if x >= 3 else "Aviso" if x == 2 else None
+    )
+    return df_alertas.dropna(subset=["Tipo"])
+
 # ==========================
-# DASHBOARD PRINCIPAL
+# RUTAS PRINCIPALES
 # ==========================
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
@@ -98,75 +103,69 @@ async def dashboard(request: Request):
     if df.empty:
         return templates.TemplateResponse("dashboard.html", {"request": request, "error": "Error al cargar datos."})
 
-    # =======================
-    # Gráfico 1 - Proveedores
-    # =======================
-    if "razon_social" in df.columns and not df["razon_social"].dropna().empty:
+    df_alertas = generar_alertas(df)
+
+    # === Gráfico 1: Proveedores ===
+    if "razon_social" in df.columns:
         top_prov = df["razon_social"].value_counts().head(10).reset_index()
         top_prov.columns = ["Proveedor", "Cantidad"]
         graf_proveedores = px.bar(
-            top_prov,
-            x="Proveedor", y="Cantidad",
+            top_prov, x="Proveedor", y="Cantidad",
             title="Top 10 Proveedores con más reclamos"
         ).to_html(full_html=False)
-        proveedor_top = df["razon_social"].mode()[0]
     else:
-        graf_proveedores = "<p style='color:red;'>Columna 'razon_social' no disponible</p>"
-        proveedor_top = "-"
+        graf_proveedores = "<p>No se encontraron datos de proveedores.</p>"
 
-    # =======================
-    # Gráfico 2 - Productos
-    # =======================
-    if "descripcion" in df.columns and not df["descripcion"].dropna().empty:
+    # === Gráfico 2: Productos ===
+    if "descripcion" in df.columns:
         top_prod = df["descripcion"].value_counts().head(10).reset_index()
         top_prod.columns = ["Producto", "Cantidad"]
         graf_productos = px.bar(
-            top_prod,
-            x="Producto", y="Cantidad",
+            top_prod, x="Producto", y="Cantidad",
             title="Top 10 Productos más reclamados"
         ).to_html(full_html=False)
-        producto_top = df["descripcion"].mode()[0]
     else:
-        graf_productos = "<p style='color:red;'>Columna 'descripcion' no disponible</p>"
-        producto_top = "-"
+        graf_productos = "<p>No se encontraron datos de productos.</p>"
 
-    # =======================
-    # Gráfico 3 - Alertas (EAN + Lote)
-    # =======================
-    if "ean" in df.columns and "lote_nro" in df.columns and "codigo_sucursal" in df.columns:
-        df_alertas = (
-            df.groupby(["ean", "lote_nro"])
-            .agg({"codigo_sucursal": "nunique"})
-            .reset_index()
-            .rename(columns={"codigo_sucursal": "Cantidad_tiendas"})
-        )
-        df_alertas["Tipo"] = df_alertas["Cantidad_tiendas"].apply(
-            lambda x: "⚠️ Alerta" if x >= 3 else "Aviso" if x == 2 else None
-        )
-        df_alertas = df_alertas.dropna(subset=["Tipo"])
-
-        graf_alertas = px.bar(
-            df_alertas, x="ean", y="Cantidad_tiendas", color="Tipo",
-            title="Alertas detectadas (EAN + Lote con reclamos en múltiples tiendas)"
-        ).to_html(full_html=False)
-
-        total_avisos = df_alertas[df_alertas["Tipo"] == "Aviso"].shape[0]
-        total_alertas = df_alertas[df_alertas["Tipo"] == "⚠️ Alerta"].shape[0]
-    else:
-        graf_alertas = "<p style='color:red;'>Datos insuficientes para generar alertas</p>"
-        total_avisos = total_alertas = 0
-
-    total_reclamos = len(df)
+    # === Gráfico 3: Alertas ===
+    graf_alertas = px.bar(
+        df_alertas, x="ean", y="Cantidad_tiendas", color="Tipo",
+        title="Alertas detectadas (EAN + Lote con reclamos en múltiples tiendas)"
+    ).to_html(full_html=False) if not df_alertas.empty else "<p>Sin alertas detectadas.</p>"
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "graf_proveedores": graf_proveedores,
         "graf_productos": graf_productos,
         "graf_alertas": graf_alertas,
-        "total_reclamos": total_reclamos,
-        "total_avisos": total_avisos,
-        "total_alertas": total_alertas,
-        "proveedor_top": proveedor_top,
-        "producto_top": producto_top,
+        "total_avisos": df_alertas[df_alertas["Tipo"] == "Aviso"].shape[0],
+        "total_alertas": df_alertas[df_alertas["Tipo"] == "⚠️ Alerta"].shape[0],
         "error": None
+    })
+
+# ==========================
+# RUTA DETALLE AVISOS Y ALERTAS
+# ==========================
+@app.get("/avisos", response_class=HTMLResponse)
+async def ver_avisos(request: Request):
+    df = cargar_datos_locales()
+    df_alertas = generar_alertas(df)
+    df_filtrado = df_alertas[df_alertas["Tipo"] == "Aviso"]
+    return templates.TemplateResponse("detalle.html", {
+        "request": request,
+        "titulo": "Avisos detectados",
+        "tipo": "Aviso",
+        "data": df_filtrado.to_dict(orient="records")
+    })
+
+@app.get("/alertas", response_class=HTMLResponse)
+async def ver_alertas(request: Request):
+    df = cargar_datos_locales()
+    df_alertas = generar_alertas(df)
+    df_filtrado = df_alertas[df_alertas["Tipo"] == "⚠️ Alerta"]
+    return templates.TemplateResponse("detalle.html", {
+        "request": request,
+        "titulo": "Alertas detectadas",
+        "tipo": "⚠️ Alerta",
+        "data": df_filtrado.to_dict(orient="records")
     })
