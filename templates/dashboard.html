@@ -1,52 +1,177 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Dashboard de Reclamos 2025</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <title>Dashboard de Reclamos 2025</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 30px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .summary-card {
+            text-align: center;
+            padding: 15px;
+        }
+        .summary-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+        .alert-table th, .alert-table td {
+            vertical-align: middle;
+        }
+        .alert-aviso {
+            background-color: #fff3cd;
+        }
+        .alert-alerta {
+            background-color: #f8d7da;
+        }
+    </style>
 </head>
-<body class="bg-light">
+<body>
 
-<div class="container mt-4">
-    <div class="text-center mb-4">
-        <img src="/static/LogoCarre.png" alt="Logo" style="height:80px;">
-        <h1 class="mt-3">Dashboard de Reclamos 2025</h1>
-    </div>
+    <div class="container">
+        <div class="text-center mb-3">
+            <img src="/static/LogoCarre.png" alt="Logo" height="60">
+        </div>
+        <h1>Dashboard de Reclamos 2025</h1>
 
-    <!-- KPIs -->
-    <div class="row text-center mb-4">
-        <div class="col-md-2"></div>
-        <div class="col-md-2"><div class="card p-3 shadow-sm"><h5>Total Reclamos</h5><h3>{{ total_reclamos }}</h3></div></div>
-        <div class="col-md-2"><div class="card p-3 shadow-sm bg-warning-subtle"><h5>⚠️ Avisos</h5><h3>{{ total_avisos }}</h3></div></div>
-        <div class="col-md-2"><div class="card p-3 shadow-sm bg-danger-subtle"><h5>🚨 Alertas</h5><h3>{{ total_alertas }}</h3></div></div>
-        <div class="col-md-2"><div class="card p-3 shadow-sm"><h6>🏭 Proveedor con más reclamos</h6><p>{{ top_proveedor }}</p></div></div>
-        <div class="col-md-2"><div class="card p-3 shadow-sm"><h6>🍫 Producto más reclamado</h6><p>{{ top_producto }}</p></div></div>
-    </div>
-
-    <!-- Gráficos -->
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card p-3 mb-3 shadow-sm">
-                {{ graf_proveedores|safe }}
+        <!-- =======================
+             TARJETAS RESUMEN
+        ======================= -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card summary-card">
+                    <div class="summary-title">Total Reclamos</div>
+                    <div class="summary-value">{{ total_reclamos }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card summary-card" style="background-color: #fff3cd;">
+                    <div class="summary-title">⚠️ Avisos</div>
+                    <div class="summary-value">{{ total_avisos }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card summary-card" style="background-color: #f8d7da;">
+                    <div class="summary-title">🚨 Alertas</div>
+                    <div class="summary-value">{{ total_alertas }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card summary-card">
+                    <div class="summary-title">📦 Producto más reclamado</div>
+                    <div class="summary-value">
+                        {% if graf_productos %}
+                            <small>Ver gráfico abajo</small>
+                        {% else %}
+                            No disponible
+                        {% endif %}
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card p-3 mb-3 shadow-sm">
-                {{ graf_productos|safe }}
+
+        <!-- =======================
+             PROVEEDORES Y PRODUCTOS
+        ======================= -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card p-3">
+                    <h5>Top Proveedores con más reclamos</h5>
+                    <div>
+                        {{ graf_proveedores | safe }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card p-3">
+                    <h5>Top Productos más reclamados</h5>
+                    <div>
+                        {{ graf_productos | safe }}
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="card p-3 mb-4 shadow-sm">
-        <h5>Alertas detectadas</h5>
-        {{ graf_alertas|safe }}
-    </div>
+        <!-- =======================
+             LISTADO DE AVISOS
+        ======================= -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning">
+                <h5 class="m-0">⚠️ Avisos detectados (EAN + Lote con reclamos en 2 tiendas)</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if listado_avisos %}
+                    <table class="table table-sm alert-table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>EAN</th>
+                                <th>Lote</th>
+                                <th>Cantidad de tiendas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in listado_avisos %}
+                            <tr class="alert-aviso">
+                                <td>{{ item.ean }}</td>
+                                <td>{{ item.lote_nro }}</td>
+                                <td>{{ item.Cantidad_tiendas }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="p-3 mb-0 text-muted">No se detectaron avisos.</p>
+                {% endif %}
+            </div>
+        </div>
 
-    <div class="card p-3 mb-5 shadow-sm">
-        <h5>Detalle de alertas</h5>
-        {{ alertas_tabla|safe }}
+        <!-- =======================
+             LISTADO DE ALERTAS
+        ======================= -->
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">
+                <h5 class="m-0">🚨 Alertas detectadas (EAN + Lote con reclamos en 3 o más tiendas)</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if listado_alertas %}
+                    <table class="table table-sm alert-table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>EAN</th>
+                                <th>Lote</th>
+                                <th>Cantidad de tiendas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in listado_alertas %}
+                            <tr class="alert-alerta">
+                                <td>{{ item.ean }}</td>
+                                <td>{{ item.lote_nro }}</td>
+                                <td>{{ item.Cantidad_tiendas }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="p-3 mb-0 text-muted">No se detectaron alertas.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger text-center">{{ error }}</div>
+        {% endif %}
     </div>
-</div>
 
 </body>
 </html>
