@@ -3,161 +3,200 @@
 <head>
     <meta charset="UTF-8">
     <title>Dashboard de Reclamos</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css">
-
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
     <style>
-        body { background:#f8f9fa; font-family: Arial, sans-serif; }
-        .container { width: 90%; margin: auto; }
-        h2 { text-align: center; margin-top:30px; font-size:32px; font-weight:600; }
-        .logo { display:flex; justify-content:center; margin-top:15px; }
-        .card { background:white; padding:20px; border-radius:10px; margin-top:20px; box-shadow:0 2px 6px rgba(0,0,0,0.15); }
-        table { width:100%; margin-top:10px; border-collapse: collapse; }
-        th, td { padding:8px; border-bottom:1px solid #ddd; }
-        th { background:#e9ecef; }
-        .btn { padding:8px 14px; border-radius:6px; border:none; cursor:pointer; }
-        .btn-primary { background:#0057b8; color:white; }
-        .btn-danger { background:#dc3545; color:white; }
-        .btn-secondary { background:#6c757d; color:white; }
-        .filters { display:flex; gap:15px; align-items:flex-end; flex-wrap:wrap; }
-        .alert-title { font-size:20px; font-weight:600; display:flex; align-items:center; gap:8px; }
+        body {
+            background-color: #f5f7fa;
+        }
+        .titulo {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #0d47a1;
+        }
+        .card-header {
+            background-color: #0d47a1 !important;
+            color: white !important;
+        }
+        .carrefour-btn {
+            background-color: #0d47a1;
+            color: white;
+        }
+        .carrefour-btn:hover {
+            background-color: #002171;
+            color: white;
+        }
+        .btn-reset {
+            background-color: #b71c1c;
+            color: white;
+        }
+        .btn-reset:hover {
+            background-color: #7f0000;
+            color: white;
+        }
+        .alert-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #b71c1c;
+        }
+        .warning-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #f57f17;
+        }
+        table td {
+            font-size: 0.92rem;
+        }
     </style>
 </head>
 
-<body>
+<body class="p-4">
+
 <div class="container">
 
-    <div class="logo">
-        <img src="/static/logo_carrefour.png" width="70">
+    <div class="text-center mb-4">
+        <h1 class="titulo">Dashboard de Reclamos</h1>
+        <p class="text-muted">Total de reclamos: <strong>{{ total_reclamos }}</strong></p>
+
+        <a href="/" class="btn btn-secondary mb-3">Volver al inicio</a>
+
+        <br>
+        <a href="/analisis" class="btn carrefour-btn btn-lg mt-2">Ir al análisis avanzado 📊</a>
     </div>
 
-    <h2>Dashboard de Reclamos</h2>
-    <p style="text-align:center;">Total de reclamos: <b>{{ total_reclamos }}</b></p>
+    <!-- ===========================
+         FILTROS
+    ============================ -->
+    <div class="card mb-4">
+        <div class="card-header">Filtros</div>
+        <div class="card-body">
 
-    <div style="text-align:center">
-        <a href="/" class="btn btn-secondary">Volver al inicio</a>
-    </div>
+            <form method="get">
 
-    <!-- ======================= FILTROS ======================== -->
-    <div class="card">
-        <h3>Filtros</h3>
-        <form method="get" action="/dashboard">
-            <div class="filters">
+                <div class="row mb-3">
+                    <div class="col-md-2">
+                        <label>Mes</label>
+                        <select class="form-control">
+                            <option value="">Seleccionar...</option>
+                            {% for m in filtros.meses %}
+                                <option value="{{m}}">{{m}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
 
-                <div style="flex:1;">
-                    <label>Mes</label>
-                    <select name="mes" class="select2" multiple>
-                        {% for m in filtros.meses %}
-                            <option value="{{m}}">{{m}}</option>
-                        {% endfor %}
-                    </select>
+                    <div class="col-md-3">
+                        <label>Sub Tipo Caso</label>
+                        <select class="form-control">
+                            <option value="">Seleccionar...</option>
+                            {% for s in filtros.subtipos %}
+                                <option value="{{s}}">{{s}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label>Definición Calidad</label>
+                        <select class="form-control">
+                            <option value="">Seleccionar...</option>
+                            {% for c in filtros.calidades %}
+                                <option value="{{c}}">{{c}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label>Tienda</label>
+                        <select class="form-control">
+                            <option value="">Seleccionar...</option>
+                            {% for t in filtros.tiendas %}
+                                <option value="{{t}}">{{t}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label>Buscar</label>
+                        <input type="text" class="form-control" placeholder="Texto...">
+                    </div>
                 </div>
 
-                <div style="flex:1;">
-                    <label>Sub Tipo Caso / Descripción</label>
-                    <select name="subtipo" class="select2" multiple>
-                        {% for s in filtros.subtipo %}
-                            <option value="{{s}}">{{s}}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+                <button class="btn carrefour-btn" type="submit">Aplicar filtros</button>
+                <a href="/dashboard" class="btn btn-reset">Resetear filtros</a>
 
-                <div style="flex:1;">
-                    <label>Proveedor</label>
-                    <select name="calidad" class="select2" multiple>
-                        {% for c in filtros.calidad %}
-                            <option value="{{c}}">{{c}}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+            </form>
 
-                <div style="flex:1;">
-                    <label>Tienda</label>
-                    <select name="tienda" class="select2" multiple>
-                        {% for t in filtros.tiendas %}
-                            <option value="{{t}}">{{t}}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div style="flex:0.8;">
-                    <label>Buscar</label>
-                    <input type="text" class="form-control" name="busqueda" placeholder="Buscar texto...">
-                </div>
-
-                <button type="submit" class="btn btn-primary">Aplicar filtros</button>
-                <a href="/dashboard" class="btn btn-danger">Resetear filtros</a>
-            </div>
-        </form>
-    </div>
-
-    <!-- ======================= AVISOS ======================== -->
-    <div class="card">
-        <div class="alert-title" style="color:#f4a300;">
-            ⚠ Avisos (2 tiendas)
         </div>
-        <button onclick="window.location='/exportar/avisos'" class="btn btn-secondary" style="float:right;margin-bottom:10px;">
-            Exportar Excel
-        </button>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>EAN</th><th>Lote</th><th>Descripción</th><th>Proveedor</th><th>Cantidad Tiendas</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for a in avisos %}
-                <tr>
-                    <td>{{a.ean}}</td>
-                    <td>{{a.lote}}</td>
-                    <td>{{a.descripcion}}</td>
-                    <td>{{a.razon}}</td>
-                    <td>{{a.cantidad_tiendas}}</td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
     </div>
 
-    <!-- ======================= ALERTAS ======================== -->
-    <div class="card">
-        <div class="alert-title" style="color:#cc0000;">
-            🚨 Alertas (3+ tiendas)
-        </div>
-        <button onclick="window.location='/exportar/alertas'" class="btn btn-secondary" style="float:right;margin-bottom:10px;">
-            Exportar Excel
-        </button>
+    <!-- ===========================
+         AVISOS
+    ============================ -->
+    <div class="card mb-4">
+        <div class="card-header warning-title">⚠ Avisos (2 tiendas)</div>
+        <div class="card-body">
 
-        <table>
-            <thead>
+            <table class="table table-bordered table-striped">
+                <thead class="table-light">
                 <tr>
-                    <th>EAN</th><th>Lote</th><th>Descripción</th><th>Proveedor</th><th>Cantidad Tiendas</th>
+                    <th>EAN</th>
+                    <th>Lote</th>
+                    <th>Descripción</th>
+                    <th>Proveedor</th>
+                    <th>Cantidad Tiendas</th>
                 </tr>
-            </thead>
-            <tbody>
-            {% for a in alertas %}
+                </thead>
+
+                <tbody>
+                {% for a in avisos %}
+                    <tr>
+                        <td>{{a.ean}}</td>
+                        <td>{{a.lote}}</td>
+                        <td>{{a.descripcion}}</td>
+                        <td>{{a.proveedor}}</td>
+                        <td>{{a.cantidad_tiendas}}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            <a href="/descargar" class="btn btn-success">Exportar Excel</a>
+        </div>
+    </div>
+
+    <!-- ===========================
+         ALERTAS
+    ============================ -->
+    <div class="card mb-4">
+        <div class="card-header alert-title">🚨 Alertas (3+ tiendas)</div>
+        <div class="card-body">
+
+            <table class="table table-bordered table-striped">
+                <thead class="table-light">
                 <tr>
-                    <td>{{a.ean}}</td>
-                    <td>{{a.lote}}</td>
-                    <td>{{a.descripcion}}</td>
-                    <td>{{a.razon}}</td>
-                    <td>{{a.cantidad_tiendas}}</td>
+                    <th>EAN</th>
+                    <th>Lote</th>
+                    <th>Descripción</th>
+                    <th>Proveedor</th>
+                    <th>Cantidad Tiendas</th>
                 </tr>
-            {% endfor %}
-            </tbody>
-        </table>
+                </thead>
+
+                <tbody>
+                {% for a in alertas %}
+                    <tr>
+                        <td>{{a.ean}}</td>
+                        <td>{{a.lote}}</td>
+                        <td>{{a.descripcion}}</td>
+                        <td>{{a.proveedor}}</td>
+                        <td>{{a.cantidad_tiendas}}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+        </div>
     </div>
 
 </div>
-
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
-<script>
-    $(document).ready(function() {
-        $('.select2').select2();
-    });
-</script>
 
 </body>
 </html>
