@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, Request, Form
 from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import pandas as pd
 import os
 import io
@@ -13,47 +13,48 @@ templates = Jinja2Templates(directory="templates")
 RESULT_PATH = "informe_resultado.xlsx"
 df_resultado_global = pd.DataFrame()
 
-# ==========================
-# FUNCIONES DE NORMALIZACIÓN
-# ==========================
+# ======================================================
+# Normalización de nombres de columnas
+# ======================================================
 def normalizar_col(col):
-    col = str(col).strip().lower()
-    col = col.replace(" ", "").replace("_","")
-    col = (col.replace("ó","o").replace("á","a").replace("é","e")
-              .replace("í","i").replace("ú","u"))
-    return col
+    c = str(col).strip().lower()
+    c = c.replace(" ", "").replace("_", "")
+    c = (c.replace("á","a").replace("é","e")
+           .replace("í","i").replace("ó","o")
+           .replace("ú","u"))
+    return c
 
 def buscar_col(df, posibles):
     df_cols = {normalizar_col(c): c for c in df.columns}
     for p in posibles:
-        if normalizar_col(p) in df_cols:
-            return df_cols[normalizar_col(p)]
+        key = normalizar_col(p)
+        if key in df_cols:
+            return df_cols[key]
     return None
 
 
-
-# ==========================
-# INDEX - SUBIDA DE ARCHIVO
-# ==========================
+# ======================================================
+# Página principal
+# ======================================================
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "descarga_disponible": False
-    })
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
-
+# ======================================================
+# Procesar archivo
+# ======================================================
 @app.post("/analizar", response_class=HTMLResponse)
 async def analizar(request: Request, file: UploadFile):
     global df_resultado_global
 
     contenido = await file.read()
-    df_input = pd.read_excel(io.BytesIO(contenido))
+    df = pd.read_excel(io.BytesIO(contenido))
 
-    df_input.columns = [c.strip() for c in df_input.columns]
-    df_resultado_global = df_input.copy()
-    df_resultado_global.to_excel(RESULT_PATH, index=False)
+    df.columns = [str(c).strip() for c in df.columns]
+    df_resultado_global = df.copy()
+
+    df.to_excel(RESULT_PATH, index=False)
 
     return templates.TemplateResponse("index.html", {
         "request": request,
@@ -61,93 +62,66 @@ async def analizar(request: Request, file: UploadFile):
     })
 
 
-
-# ==========================
-# DASHBOARD
-# ==========================
+# ======================================================
+# Dashboard
+# ======================================================
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
-
     global df_resultado_global
 
     if df_resultado_global.empty and os.path.exists(RESULT_PATH):
         df_resultado_global = pd.read_excel(RESULT_PATH)
 
     if df_resultado_global.empty:
-        return HTMLResponse("<h3 style='color:red'>No hay datos cargados.</h3>")
+        return HTMLResponse("<h3>No hay datos cargados.</h3>")
 
     df = df_resultado_global.copy()
     df.columns = [str(c).strip() for c in df.columns]
 
-    # ==========================
-    # BUSCAR COLUMNAS IMPORTANTES
-    # ==========================
+    # Mapeo de columnas
     columnas = {
-        "ean": ["ean", "codigo ean", "cod ean"],
-        "lote": ["lote nro.", "lote", "nro lote"],
-        "descripcion": ["descripcion", "producto", "nombre producto"],
-        "proveedor": ["razon social", "proveedor", "fabricante"],
+        "fecha": ["fecha de apertura","fecha","fecha_apertura","fecha/hora de apertura"],
+        "ean": ["ean","codigo ean","cod ean"],
+        "lote": ["lote","lote nro.","nro lote"],
+        "descripcion": ["descripcion","producto","nombre producto"],
+        "proveedor": ["razon social","proveedor","fabricante"],
+        "tienda": ["tienda","sucursal","codigo_sucursal"],
         "mes": ["mes"],
         "subtipo": ["sub tipo caso","subtipo","subtipo caso"],
-        "calidad": ["definicion_calidad","definicion calidad","calidad"],
-        "tienda": ["codigo_sucursal","sucursal","tienda","local"]
+        "calidad": ["definicion calidad","def calidad","calidad"]
     }
 
-    # Renombrar columnas
-    m = {}
+    # Normalización
+    mapeo = {}
     for key, posibles in columnas.items():
         col = buscar_col(df, posibles)
         if col:
+            mapeo[key] = col
             df.rename(columns={col: key}, inplace=True)
-            m[key] = col
         else:
             df[key] = ""
 
-    # Convertir todo a texto
-    for col in columnas.keys():
-        df[col] = df[col].fillna("").astype(str)
+    # Todo texto
+    for c in df.columns:
+        df[c] = df[c].fillna("").astype(str)
 
-    # ==========================
-    # EXCLUIR RECLAMOS SIN LOTE
-    # ==========================
-    df = df[df["lote"] != ""].copy()
-
-    if df.empty:
-        return templates.TemplateResponse("dashboard.html", {
-            "request": request,
-            "total_reclamos": 0,
-            "avisos": [],
-            "alertas": [],
-            "filtros": {}
-        })
-
-    # ==========================
-    # AGRUPAR EAN + LOTE
-    # ==========================
-    resumen = (
-        df.groupby(["ean","lote"])
-        .size()
-        .reset_index(name="cantidad_tiendas")
-    )
+    # === Avisos / Alertas ===
+    resumen = df.groupby(["ean", "lote"]).size().reset_index(name="cantidad_tiendas")
 
     avisos = resumen[resumen["cantidad_tiendas"] == 2]
     alertas = resumen[resumen["cantidad_tiendas"] >= 3]
 
-    # ==========================
-    # AGREGAR DESCRIPCIÓN Y PROVEEDOR
-    # ==========================
-    df_unique = df[["ean","lote","descripcion","proveedor"]].drop_duplicates()
+    # unir info descriptiva
+    info = df[["ean","lote","descripcion","proveedor"]].drop_duplicates()
 
-    avisos = avisos.merge(df_unique, on=["ean","lote"], how="left")
-    alertas = alertas.merge(df_unique, on=["ean","lote"], how="left")
+    avisos = avisos.merge(info, on=["ean","lote"], how="left")
+    alertas = alertas.merge(info, on=["ean","lote"], how="left")
 
-    # ==========================
-    # LISTADOS PARA FILTROS
-    # ==========================
+    # filtros
     filtros = {
         "meses": sorted(df["mes"].unique()),
-        "subtipo": sorted(df["subtipo"].unique()),
-        "calidad": sorted(df["calidad"].unique()),
+        "subtipos": sorted(df["subtipo"].unique()),
+        "calidades": sorted(df["calidad"].unique()),
         "tiendas": sorted(df["tienda"].unique())
     }
 
@@ -160,12 +134,76 @@ async def dashboard(request: Request):
     })
 
 
+# ======================================================
+# ANÁLISIS AVANZADO
+# ======================================================
+@app.get("/analisis", response_class=HTMLResponse)
+async def analisis(request: Request):
+    global df_resultado_global
 
-# ==========================
-# DESCARGAR EXCEL
-# ==========================
+    if df_resultado_global.empty:
+        return HTMLResponse("<h3>No hay datos cargados.</h3>")
+
+    df = df_resultado_global.copy()
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # Igual mapeo que dashboard
+    columnas = {
+        "fecha": ["fecha de apertura","fecha","fecha_apertura"],
+        "ean": ["ean","codigo ean"],
+        "lote": ["lote","lote nro.","nro lote"],
+        "descripcion": ["descripcion","producto","nombre producto"],
+        "proveedor": ["razon social","proveedor","fabricante"],
+        "tienda": ["tienda","sucursal","codigo_sucursal"],
+        "mes": ["mes"],
+        "subtipo": ["sub tipo caso","subtipo"],
+        "calidad": ["definicion calidad","calidad"]
+    }
+
+    # Normalización
+    for key, posibles in columnas.items():
+        col = buscar_col(df, posibles)
+        if col:
+            df.rename(columns={col: key}, inplace=True)
+        else:
+            df[key] = ""
+
+    for c in df.columns:
+        df[c] = df[c].fillna("").astype(str)
+
+    # Top productos y proveedores
+    top_prod = df.groupby("descripcion").size().sort_values(ascending=False).head(10)
+    top_prov = df.groupby("proveedor").size().sort_values(ascending=False).head(10)
+    top_tiendas = df.groupby("tienda").size().sort_values(ascending=False).head(10)
+
+    reclamos_mes = df.groupby("mes").size()
+
+    subtipos = df.groupby("subtipo").size().sort_values(ascending=False).head(10)
+
+    filtros = {
+        "ean": sorted(df["ean"].unique()),
+        "descripcion": sorted(df["descripcion"].unique()),
+        "proveedor": sorted(df["proveedor"].unique()),
+        "mes": sorted(df["mes"].unique()),
+        "tienda": sorted(df["tienda"].unique()),
+        "calidad": sorted(df["calidad"].unique()),
+        "subtipo": sorted(df["subtipo"].unique())
+    }
+
+    return templates.TemplateResponse("analisis.html", {
+        "request": request,
+        "top_prod": top_prod,
+        "top_prov": top_prov,
+        "reclamos_mes": reclamos_mes,
+        "subtipos": subtipos,
+        "top_tiendas": top_tiendas,
+        "filtros": filtros
+    })
+
+
+# ======================================================
 @app.get("/descargar")
 async def descargar():
     if os.path.exists(RESULT_PATH):
         return FileResponse(RESULT_PATH, filename="Informe_EANs_Tipificados.xlsx")
-    return {"error":"No disponible"}
+    return {"error": "No existe archivo"}
