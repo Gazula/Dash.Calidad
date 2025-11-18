@@ -6,9 +6,6 @@ import pandas as pd
 import os
 import io
 
-# ==========================
-# CONFIGURACIÓN BASE
-# ==========================
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -16,17 +13,15 @@ templates = Jinja2Templates(directory="templates")
 RESULT_PATH = "informe_resultado.xlsx"
 df_resultado_global = pd.DataFrame()
 
-
 # ==========================
-# FUNCIONES AUXILIARES
+# FUNCIONES DE NORMALIZACIÓN
 # ==========================
 def normalizar_col(col):
     col = str(col).strip().lower()
-    col = col.replace(" ", "").replace("_", "")
-    col = (col.replace("ó", "o").replace("á", "a").replace("é", "e")
-              .replace("í", "i").replace("ú", "u"))
+    col = col.replace(" ", "").replace("_","")
+    col = (col.replace("ó","o").replace("á","a").replace("é","e")
+              .replace("í","i").replace("ú","u"))
     return col
-
 
 def buscar_col(df, posibles):
     df_cols = {normalizar_col(c): c for c in df.columns}
@@ -36,8 +31,9 @@ def buscar_col(df, posibles):
     return None
 
 
+
 # ==========================
-# INDEX PRINCIPAL
+# INDEX - SUBIDA DE ARCHIVO
 # ==========================
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -47,9 +43,7 @@ async def index(request: Request):
     })
 
 
-# ==========================
-# PROCESAR ARCHIVO
-# ==========================
+
 @app.post("/analizar", response_class=HTMLResponse)
 async def analizar(request: Request, file: UploadFile):
     global df_resultado_global
@@ -67,79 +61,89 @@ async def analizar(request: Request, file: UploadFile):
     })
 
 
+
 # ==========================
 # DASHBOARD
 # ==========================
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
+
     global df_resultado_global
 
     if df_resultado_global.empty and os.path.exists(RESULT_PATH):
         df_resultado_global = pd.read_excel(RESULT_PATH)
 
     if df_resultado_global.empty:
-        return HTMLResponse("<h3 style='color:red'>No hay datos cargados. Por favor subí un archivo.</h3>")
+        return HTMLResponse("<h3 style='color:red'>No hay datos cargados.</h3>")
 
     df = df_resultado_global.copy()
     df.columns = [str(c).strip() for c in df.columns]
 
-    # Definiciones de columnas esperadas
+    # ==========================
+    # BUSCAR COLUMNAS IMPORTANTES
+    # ==========================
     columnas = {
-        "fecha": ["fecha de apertura", "fecha/hora de apertura", "fecha"],
         "ean": ["ean", "codigo ean", "cod ean"],
-        "lote": ["lote nro.", "lote", "nro lote", "lote n°"],
+        "lote": ["lote nro.", "lote", "nro lote"],
         "descripcion": ["descripcion", "producto", "nombre producto"],
-        "razon": ["razon social", "proveedor", "fabricante"],
-        "tienda": ["codigo_sucursal", "sucursal", "tienda", "codigo tienda"],
+        "proveedor": ["razon social", "proveedor", "fabricante"],
         "mes": ["mes"],
-        "subtipo": ["sub tipo caso", "subtipo"],
-        "calidad": ["definicion_calidad", "calidad", "def. calidad"]
+        "subtipo": ["sub tipo caso","subtipo","subtipo caso"],
+        "calidad": ["definicion_calidad","definicion calidad","calidad"],
+        "tienda": ["codigo_sucursal","sucursal","tienda","local"]
     }
 
-    mapeo = {}
+    # Renombrar columnas
+    m = {}
     for key, posibles in columnas.items():
         col = buscar_col(df, posibles)
         if col:
-            mapeo[key] = col
-
-    # Crear faltantes
-    for key in columnas:
-        if key not in mapeo:
-            df[key] = ""
+            df.rename(columns={col: key}, inplace=True)
+            m[key] = col
         else:
-            df.rename(columns={mapeo[key]: key}, inplace=True)
+            df[key] = ""
 
-    # Convertir todo a string
-    for col in ["ean", "lote", "descripcion", "razon", "tienda", "mes", "subtipo", "calidad"]:
+    # Convertir todo a texto
+    for col in columnas.keys():
         df[col] = df[col].fillna("").astype(str)
 
     # ==========================
-    # GENERAR AVISOS Y ALERTAS
+    # EXCLUIR RECLAMOS SIN LOTE
     # ==========================
-    if {"ean", "lote", "tienda"}.issubset(df.columns):
-        tmp = (
-            df.groupby(["ean", "lote", "tienda"])
-              .size()
-              .reset_index(name="tmp")
-        )
+    df = df[df["lote"] != ""].copy()
 
-        resumen = (
-            tmp.groupby(["ean", "lote"])
-               .agg(cantidad_tiendas=("tienda", "nunique"))
-               .reset_index()
-        )
+    if df.empty:
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "total_reclamos": 0,
+            "avisos": [],
+            "alertas": [],
+            "filtros": {}
+        })
 
-        avisos = resumen[resumen["cantidad_tiendas"] == 2].copy()
-        alertas = resumen[resumen["cantidad_tiendas"] >= 3].copy()
+    # ==========================
+    # AGRUPAR EAN + LOTE
+    # ==========================
+    resumen = (
+        df.groupby(["ean","lote"])
+        .size()
+        .reset_index(name="cantidad_tiendas")
+    )
 
-        detalles = df[["ean", "lote", "descripcion", "razon"]].drop_duplicates()
+    avisos = resumen[resumen["cantidad_tiendas"] == 2]
+    alertas = resumen[resumen["cantidad_tiendas"] >= 3]
 
-        avisos = avisos.merge(detalles, on=["ean", "lote"], how="left")
-        alertas = alertas.merge(detalles, on=["ean", "lote"], how="left")
-    else:
-        avisos = pd.DataFrame()
-        alertas = pd.DataFrame()
+    # ==========================
+    # AGREGAR DESCRIPCIÓN Y PROVEEDOR
+    # ==========================
+    df_unique = df[["ean","lote","descripcion","proveedor"]].drop_duplicates()
 
+    avisos = avisos.merge(df_unique, on=["ean","lote"], how="left")
+    alertas = alertas.merge(df_unique, on=["ean","lote"], how="left")
+
+    # ==========================
+    # LISTADOS PARA FILTROS
+    # ==========================
     filtros = {
         "meses": sorted(df["mes"].unique()),
         "subtipo": sorted(df["subtipo"].unique()),
@@ -156,6 +160,7 @@ async def dashboard(request: Request):
     })
 
 
+
 # ==========================
 # DESCARGAR EXCEL
 # ==========================
@@ -163,4 +168,4 @@ async def dashboard(request: Request):
 async def descargar():
     if os.path.exists(RESULT_PATH):
         return FileResponse(RESULT_PATH, filename="Informe_EANs_Tipificados.xlsx")
-    return {"error": "No disponible"}
+    return {"error":"No disponible"}
