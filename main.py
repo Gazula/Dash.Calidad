@@ -91,33 +91,42 @@ async def dashboard(request: Request):
         "calidad": ["definicion calidad","def calidad","calidad"]
     }
 
-    # Normalización
-    mapeo = {}
+    # Normalización y renombre
     for key, posibles in columnas.items():
         col = buscar_col(df, posibles)
         if col:
-            mapeo[key] = col
             df.rename(columns={col: key}, inplace=True)
         else:
             df[key] = ""
 
-    # Todo texto
-    for c in df.columns:
-        df[c] = df[c].fillna("").astype(str)
+    # =============================================================
+    # NORMALIZACIÓN QUE FALTABA 🔥
+    # =============================================================
 
-    # === Avisos / Alertas ===
+    # Normalizar EAN
+    df["ean"] = df["ean"].astype(str).str.replace(".0", "", regex=False).str.strip()
+
+    # Normalizar Lote
+    df["lote"] = df["lote"].astype(str).str.strip().replace(
+        ["nan","None","none","NaN"], ""
+    )
+
+    # FILTRAR reclamos SIN LOTE
+    df = df[df["lote"] != ""]
+
+    # =============================================================
+    # Avisos y alertas
+    # =============================================================
     resumen = df.groupby(["ean", "lote"]).size().reset_index(name="cantidad_tiendas")
 
     avisos = resumen[resumen["cantidad_tiendas"] == 2]
     alertas = resumen[resumen["cantidad_tiendas"] >= 3]
 
-    # unir info descriptiva
     info = df[["ean","lote","descripcion","proveedor"]].drop_duplicates()
 
     avisos = avisos.merge(info, on=["ean","lote"], how="left")
     alertas = alertas.merge(info, on=["ean","lote"], how="left")
 
-    # filtros
     filtros = {
         "meses": sorted(df["mes"].unique()),
         "subtipos": sorted(df["subtipo"].unique()),
@@ -135,7 +144,7 @@ async def dashboard(request: Request):
 
 
 # ======================================================
-# ANÁLISIS AVANZADO
+# Análisis avanzado
 # ======================================================
 @app.get("/analisis", response_class=HTMLResponse)
 async def analisis(request: Request):
@@ -147,57 +156,8 @@ async def analisis(request: Request):
     df = df_resultado_global.copy()
     df.columns = [str(c).strip() for c in df.columns]
 
-    # Igual mapeo que dashboard
-    columnas = {
-        "fecha": ["fecha de apertura","fecha","fecha_apertura"],
-        "ean": ["ean","codigo ean"],
-        "lote": ["lote","lote nro.","nro lote"],
-        "descripcion": ["descripcion","producto","nombre producto"],
-        "proveedor": ["razon social","proveedor","fabricante"],
-        "tienda": ["tienda","sucursal","codigo_sucursal"],
-        "mes": ["mes"],
-        "subtipo": ["sub tipo caso","subtipo"],
-        "calidad": ["definicion calidad","calidad"]
-    }
-
-    # Normalización
-    for key, posibles in columnas.items():
-        col = buscar_col(df, posibles)
-        if col:
-            df.rename(columns={col: key}, inplace=True)
-        else:
-            df[key] = ""
-
-    for c in df.columns:
-        df[c] = df[c].fillna("").astype(str)
-
-    # Top productos y proveedores
-    top_prod = df.groupby("descripcion").size().sort_values(ascending=False).head(10)
-    top_prov = df.groupby("proveedor").size().sort_values(ascending=False).head(10)
-    top_tiendas = df.groupby("tienda").size().sort_values(ascending=False).head(10)
-
-    reclamos_mes = df.groupby("mes").size()
-
-    subtipos = df.groupby("subtipo").size().sort_values(ascending=False).head(10)
-
-    filtros = {
-        "ean": sorted(df["ean"].unique()),
-        "descripcion": sorted(df["descripcion"].unique()),
-        "proveedor": sorted(df["proveedor"].unique()),
-        "mes": sorted(df["mes"].unique()),
-        "tienda": sorted(df["tienda"].unique()),
-        "calidad": sorted(df["calidad"].unique()),
-        "subtipo": sorted(df["subtipo"].unique())
-    }
-
     return templates.TemplateResponse("analisis.html", {
         "request": request,
-        "top_prod": top_prod,
-        "top_prov": top_prov,
-        "reclamos_mes": reclamos_mes,
-        "subtipos": subtipos,
-        "top_tiendas": top_tiendas,
-        "filtros": filtros
     })
 
 
