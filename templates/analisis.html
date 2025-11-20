@@ -3,214 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <title>Análisis Avanzado</title>
-    <link rel="stylesheet" href="/static/bootstrap.min.css">
-
-    <style>
-        body {
-            background-color: #f7f7f7;
-        }
-        .card-header {
-            background-color: #003a70;
-            color: white;
-            font-weight: bold;
-        }
-        h2 {
-            margin-top: 20px;
-            text-align: center;
-            color: #003a70;
-            font-weight: bold;
-        }
-        .btn-primary {
-            background-color: #003a70;
-            border-color: #003a70;
-        }
-        .btn-danger {
-            background-color: #d9001b;
-            border-color: #d9001b;
-        }
-        .top-space {
-            margin-top: 25px;
-        }
-        .filter-box {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #dee2e6;
-            margin-bottom: 20px;
-        }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
-<body>
+<body class="bg-light">
 
 <div class="container mt-4">
 
-    <h2>Análisis Avanzado</h2>
+    <h2 class="text-center mb-4">Análisis Avanzado</h2>
 
     <div class="text-center mb-3">
-        <a href="/dashboard" class="btn btn-primary">Volver al Dashboard</a>
+        <a href="/dashboard" class="btn btn-secondary">Volver al Dashboard</a>
     </div>
 
-    <!-- =======================================
-         FILTROS
-         ======================================= -->
-    <div class="filter-box">
-        <h5><strong>Filtros</strong></h5>
-        <form method="get" action="/analisis">
+    <!-- ============================= -->
+    <!-- FILTROS                       -->
+    <!-- ============================= -->
+    <div class="card shadow mb-4">
+        <div class="card-header bg-primary text-white">
+            Filtros
+        </div>
+        <div class="card-body">
 
-            <div class="row">
+            <form method="get">
 
-                <div class="col-md-3">
-                    <label>EAN</label>
-                    <select class="form-control" name="ean">
-                        <option value="">Todos</option>
-                        {% for x in filtros_analisis.ean %}
-                            <option value="{{ x }}">{{ x }}</option>
-                        {% endfor %}
-                    </select>
+                <div class="row mb-3">
+                    <div class="col">
+                        <label class="form-label">EAN</label>
+                        <select class="form-select" name="ean">
+                            <option value="">Todos</option>
+                            {% for x in filtros_analisis.ean %}
+                                <option value="{{ x }}">{{ x }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col">
+                        <label class="form-label">Producto</label>
+                        <select class="form-select" name="descripcion">
+                            <option value="">Todos</option>
+                            {% for x in filtros_analisis.descripcion %}
+                                <option value="{{ x }}">{{ x }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col">
+                        <label class="form-label">Proveedor</label>
+                        <select class="form-select" name="proveedor">
+                            <option value="">Todos</option>
+                            {% for x in filtros_analisis.proveedor %}
+                                <option value="{{ x }}">{{ x }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col">
+                        <label class="form-label">Mes</label>
+                        <select class="form-select" name="mes">
+                            <option value="">Todos</option>
+                            {% for x in filtros_analisis.mes %}
+                                <option value="{{ x }}">{{ x }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
 
-                <div class="col-md-3">
-                    <label>Producto</label>
-                    <select class="form-control" name="descripcion">
-                        <option value="">Todos</option>
-                        {% for x in filtros.descripcion %}
-                            <option value="{{ x }}">{{ x }}</option>
-                        {% endfor %}
-                    </select>
+                <div class="row mb-3">
+
+                    <div class="col">
+                        <label class="form-label">Tienda</label>
+                        <select class="form-select" name="tienda">
+                            <option value="">Todas</option>
+                            {% for x in filtros_analisis.tienda %}
+                                <option value="{{ x }}">{{ x }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col">
+                        <label class="form-label">Calidad</label>
+                        <select class="form-select" name="calidad">
+                            <option value="">Todas</option>
+                            {% for x in filtros_analisis.calidad %}
+                                <option value="{{ x }}">{{ x }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col">
+                        <label class="form-label">Sub Tipo Caso</label>
+                        <select class="form-select" name="subtipo">
+                            <option value="">Todos</option>
+                            {% for x in filtros_analisis.subtipo %}
+                                <option value="{{ x }}">{{ x }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
                 </div>
 
-                <div class="col-md-3">
-                    <label>Proveedor</label>
-                    <select class="form-control" name="proveedor">
-                        <option value="">Todos</option>
-                        {% for x in filtros.proveedor %}
-                            <option value="{{ x }}">{{ x }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="col-md-3">
-                    <label>Mes</label>
-                    <select class="form-control" name="mes">
-                        <option value="">Todos</option>
-                        {% for x in filtros.mes %}
-                            <option value="{{ x }}">{{ x }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-
-            <div class="row top-space">
-
-                <div class="col-md-3">
-                    <label>Tienda</label>
-                    <select class="form-control" name="tienda">
-                        <option value="">Todas</option>
-                        {% for x in filtros.tienda %}
-                            <option value="{{ x }}">{{ x }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="col-md-3">
-                    <label>Calidad</label>
-                    <select class="form-control" name="calidad">
-                        <option value="">Todas</option>
-                        {% for x in filtros.calidad %}
-                            <option value="{{ x }}">{{ x }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="col-md-3">
-                    <label>Sub Tipo Caso</label>
-                    <select class="form-control" name="subtipo">
-                        <option value="">Todos</option>
-                        {% for x in filtros.subtipo %}
-                            <option value="{{ x }}">{{ x }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="col-md-3 d-flex align-items-end">
-                    <button class="btn btn-primary mr-2" type="submit">Aplicar filtros</button>
+                <div class="text-center">
+                    <button class="btn btn-primary">Aplicar filtros</button>
                     <a href="/analisis" class="btn btn-danger">Resetear</a>
                 </div>
 
-            </div>
-        </form>
-    </div>
-
-    <!-- =======================================
-         SECCIÓN: TOP PRODUCTOS
-         ======================================= -->
-    <div class="card mt-3">
-        <div class="card-header">Top 10 Productos más reclamados</div>
-        <div class="card-body">
-            {% if top_prod %}
-            <ul>
-                {% for p, cant in top_prod.items() %}
-                    <li><strong>{{ p }}</strong>: {{ cant }} reclamos</li>
-                {% endfor %}
-            </ul>
-            {% else %}
-                <p>No hay datos para mostrar.</p>
-            {% endif %}
+            </form>
         </div>
     </div>
 
-    <!-- =======================================
-         SECCIÓN: TOP PROVEEDORES
-         ======================================= -->
-    <div class="card mt-3">
-        <div class="card-header">Top 10 Proveedores con más reclamos</div>
+    <!-- ========================================= -->
+    <!-- TARJETAS DEL ANÁLISIS AVANZADO           -->
+    <!-- ========================================= -->
+
+    <div class="card mb-4 shadow">
+        <div class="card-header bg-primary text-white">Top 10 Productos más reclamados</div>
         <div class="card-body">
-            {% if top_prov %}
-            <ul>
-                {% for p, cant in top_prov.items() %}
-                    <li><strong>{{ p }}</strong>: {{ cant }} reclamos</li>
-                {% endfor %}
-            </ul>
-            {% else %}
-                <p>No hay datos.</p>
-            {% endif %}
+            {% for prod, cant in top_prod.items() %}
+                <p><strong>{{ prod }}</strong>: {{ cant }}</p>
+            {% endfor %}
         </div>
     </div>
 
-    <!-- =======================================
-         SECCIÓN: RECLAMOS POR MES
-         ======================================= -->
-    <div class="card mt-3">
-        <div class="card-header">Reclamos por Mes</div>
+    <div class="card mb-4 shadow">
+        <div class="card-header bg-primary text-white">Top 10 Proveedores con más reclamos</div>
         <div class="card-body">
-            {% if reclamos_mes %}
-            <ul>
-                {% for mes, cant in reclamos_mes.items() %}
-                    <li><strong>{{ mes }}</strong>: {{ cant }} reclamos</li>
-                {% endfor %}
-            </ul>
-            {% else %}
-                <p>No hay datos.</p>
-            {% endif %}
+            {% for prov, cant in top_prov.items() %}
+                <p><strong>{{ prov }}</strong>: {{ cant }}</p>
+            {% endfor %}
         </div>
     </div>
 
-    <!-- =======================================
-         SECCIÓN: SUBTIPO CASO
-         ======================================= -->
-    <div class="card mt-3 mb-5">
-        <div class="card-header">Sub Tipos de Caso más frecuentes</div>
+    <div class="card mb-4 shadow">
+        <div class="card-header bg-primary text-white">Reclamos por Mes</div>
         <div class="card-body">
-            {% if subtipos %}
-            <ul>
-                {% for st, cant in subtipos.items() %}
-                    <li><strong>{{ st }}</strong>: {{ cant }} reclamos</li>
-                {% endfor %}
-            </ul>
-            {% else %}
-                <p>No hay datos.</p>
-            {% endif %}
+            {% for mes, cant in reclamos_mes.items() %}
+                <p><strong>{{ mes }}</strong>: {{ cant }}</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card mb-4 shadow">
+        <div class="card-header bg-primary text-white">Sub Tipos de Caso más frecuentes</div>
+        <div class="card-body">
+            {% for st, cant in subtipos.items() %}
+                <p><strong>{{ st }}</strong>: {{ cant }}</p>
+            {% endfor %}
         </div>
     </div>
 
