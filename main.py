@@ -201,7 +201,7 @@ async def analisis(request: Request):
         "top_tiendas": top_tiendas,
         "reclamos_mes": reclamos_mes,
         "subtipos": subtipos,
-        "filtros": filtros
+        "filtros_analisis": filtros
     })
 
 
@@ -213,3 +213,4 @@ async def descargar():
     if os.path.exists(RESULT_PATH):
         return FileResponse(RESULT_PATH, filename="Informe_EANs_Tipificados.xlsx")
     return {"error": "No existe archivo"}
+
