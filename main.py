@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Request, Form
+from fastapi import FastAPI, UploadFile, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -7,6 +7,7 @@ import os
 import io
 
 app = FastAPI()
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -19,9 +20,9 @@ df_resultado_global = pd.DataFrame()
 def normalizar_col(col):
     c = str(col).strip().lower()
     c = c.replace(" ", "").replace("_", "")
-    c = (c.replace("á","a").replace("é","e")
-           .replace("í","i").replace("ó","o")
-           .replace("ú","u"))
+    c = (c.replace("á", "a").replace("é", "e")
+           .replace("í", "i").replace("ó", "o")
+           .replace("ú", "u"))
     return c
 
 def buscar_col(df, posibles):
@@ -34,15 +35,15 @@ def buscar_col(df, posibles):
 
 
 # ======================================================
-# Página principal
+# Página inicial
 # ======================================================
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request, "descarga_disponible": False})
 
 
 # ======================================================
-# Procesar archivo
+# Procesar archivo cargado
 # ======================================================
 @app.post("/analizar", response_class=HTMLResponse)
 async def analizar(request: Request, file: UploadFile):
@@ -50,7 +51,7 @@ async def analizar(request: Request, file: UploadFile):
 
     contenido = await file.read()
     df = pd.read_excel(io.BytesIO(contenido))
-
+    
     df.columns = [str(c).strip() for c in df.columns]
     df_resultado_global = df.copy()
 
@@ -63,12 +64,12 @@ async def analizar(request: Request, file: UploadFile):
 
 
 # ======================================================
-# Dashboard
+# DASHBOARD PRINCIPAL
 # ======================================================
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     global df_resultado_global
-
+    
     if df_resultado_global.empty and os.path.exists(RESULT_PATH):
         df_resultado_global = pd.read_excel(RESULT_PATH)
 
@@ -78,20 +79,20 @@ async def dashboard(request: Request):
     df = df_resultado_global.copy()
     df.columns = [str(c).strip() for c in df.columns]
 
-    # Mapeo de columnas
+    # Mapeo general
     columnas = {
-        "fecha": ["fecha de apertura","fecha","fecha_apertura","fecha/hora de apertura"],
-        "ean": ["ean","codigo ean","cod ean"],
-        "lote": ["lote","lote nro.","nro lote"],
-        "descripcion": ["descripcion","producto","nombre producto"],
-        "proveedor": ["razon social","proveedor","fabricante"],
-        "tienda": ["tienda","sucursal","codigo_sucursal"],
+        "fecha": ["fecha de apertura", "fecha", "fecha_apertura", "fecha/hora de apertura"],
+        "ean": ["ean", "codigo ean", "cod ean"],
+        "lote": ["lote", "lote nro.", "nro lote"],
+        "descripcion": ["descripcion", "producto", "nombre producto"],
+        "proveedor": ["razon social", "proveedor", "fabricante"],
+        "tienda": ["tienda", "sucursal", "codigo_sucursal"],
         "mes": ["mes"],
-        "subtipo": ["sub tipo caso","subtipo","subtipo caso"],
-        "calidad": ["definicion calidad","def calidad","calidad"]
+        "subtipo": ["sub tipo caso", "subtipo"],
+        "calidad": ["definicion calidad", "calidad"],
     }
 
-    # Normalización y renombre
+    # Normalizar columnas
     for key, posibles in columnas.items():
         col = buscar_col(df, posibles)
         if col:
@@ -99,34 +100,27 @@ async def dashboard(request: Request):
         else:
             df[key] = ""
 
-    # =============================================================
-    # NORMALIZACIÓN QUE FALTABA 🔥
-    # =============================================================
+    # Convertir todo a texto
+    for c in df.columns:
+        df[c] = df[c].fillna("").astype(str)
 
-    # Normalizar EAN
-    df["ean"] = df["ean"].astype(str).str.replace(".0", "", regex=False).str.strip()
+    # EXCLUIR reclamos SIN lote
+    df = df[df["lote"] != ""].copy()
 
-    # Normalizar Lote
-    df["lote"] = df["lote"].astype(str).str.strip().replace(
-        ["nan","None","none","NaN"], ""
-    )
-
-    # FILTRAR reclamos SIN LOTE
-    df = df[df["lote"] != ""]
-
-    # =============================================================
-    # Avisos y alertas
-    # =============================================================
+    # ==================================================
+    # GENERACIÓN DE AVISOS Y ALERTAS
+    # ==================================================
     resumen = df.groupby(["ean", "lote"]).size().reset_index(name="cantidad_tiendas")
 
     avisos = resumen[resumen["cantidad_tiendas"] == 2]
     alertas = resumen[resumen["cantidad_tiendas"] >= 3]
 
-    info = df[["ean","lote","descripcion","proveedor"]].drop_duplicates()
+    info = df[["ean", "lote", "descripcion", "proveedor"]].drop_duplicates()
 
-    avisos = avisos.merge(info, on=["ean","lote"], how="left")
-    alertas = alertas.merge(info, on=["ean","lote"], how="left")
+    avisos = avisos.merge(info, on=["ean", "lote"], how="left")
+    alertas = alertas.merge(info, on=["ean", "lote"], how="left")
 
+    # Filtros visibles en el dashboard
     filtros = {
         "meses": sorted(df["mes"].unique()),
         "subtipos": sorted(df["subtipo"].unique()),
@@ -144,7 +138,7 @@ async def dashboard(request: Request):
 
 
 # ======================================================
-# Análisis avanzado
+# ANÁLISIS AVANZADO
 # ======================================================
 @app.get("/analisis", response_class=HTMLResponse)
 async def analisis(request: Request):
@@ -156,11 +150,63 @@ async def analisis(request: Request):
     df = df_resultado_global.copy()
     df.columns = [str(c).strip() for c in df.columns]
 
+    # Mapeo igual al dashboard
+    columnas = {
+        "fecha": ["fecha de apertura", "fecha", "fecha_apertura"],
+        "ean": ["ean", "codigo ean"],
+        "lote": ["lote", "lote nro.", "nro lote"],
+        "descripcion": ["descripcion", "producto", "nombre producto"],
+        "proveedor": ["razon social", "proveedor", "fabricante"],
+        "tienda": ["tienda", "sucursal", "codigo_sucursal"],
+        "mes": ["mes"],
+        "subtipo": ["sub tipo caso", "subtipo"],
+        "calidad": ["definicion calidad", "calidad"],
+    }
+
+    for key, posibles in columnas.items():
+        col = buscar_col(df, posibles)
+        if col:
+            df.rename(columns={col: key}, inplace=True)
+        else:
+            df[key] = ""
+
+    for c in df.columns:
+        df[c] = df[c].fillna("").astype(str)
+
+    # EXCLUIR reclamos sin lote (mismo criterio que dashboard)
+    df = df[df["lote"] != ""].copy()
+
+    # Extraer datos agregados
+    top_prod = df.groupby("descripcion").size().sort_values(ascending=False).head(10)
+    top_prov = df.groupby("proveedor").size().sort_values(ascending=False).head(10)
+    top_tiendas = df.groupby("tienda").size().sort_values(ascending=False).head(10)
+    reclamos_mes = df.groupby("mes").size()
+    subtipos = df.groupby("subtipo").size().sort_values(ascending=False).head(10)
+
+    # Filtros disponibles
+    filtros = {
+        "ean": sorted(df["ean"].unique()),
+        "descripcion": sorted(df["descripcion"].unique()),
+        "proveedor": sorted(df["proveedor"].unique()),
+        "mes": sorted(df["mes"].unique()),
+        "tienda": sorted(df["tienda"].unique()),
+        "calidad": sorted(df["calidad"].unique()),
+        "subtipo": sorted(df["subtipo"].unique()),
+    }
+
     return templates.TemplateResponse("analisis.html", {
         "request": request,
+        "top_prod": top_prod,
+        "top_prov": top_prov,
+        "top_tiendas": top_tiendas,
+        "reclamos_mes": reclamos_mes,
+        "subtipos": subtipos,
+        "filtros": filtros
     })
 
 
+# ======================================================
+# DESCARGA DEL INFORME
 # ======================================================
 @app.get("/descargar")
 async def descargar():
