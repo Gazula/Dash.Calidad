@@ -336,60 +336,94 @@ async def dashboard(
 # ANÁLISIS AVANZADO (todos los reclamos, incluidos sin lote)
 # ======================================================
 @app.get("/analisis", response_class=HTMLResponse)
-async def analisis(request: Request):
+async def analisis(
+    request: Request,
+    ean: str = "",
+    descripcion: str = "",
+    proveedor: str = "",
+    mes: str = "",
+    subtipo: str = "",
+    calidad: str = ""
+):
     global df_resultado_global
 
-    if df_resultado_global.empty and os.path.exists(RESULT_PATH):
-        df_resultado_global = pd.read_excel(RESULT_PATH)
-
     if df_resultado_global.empty:
-        return HTMLResponse("<h3>No hay datos cargados. Primero subí un archivo.</h3>")
+        return HTMLResponse("<h3>No hay datos cargados.</h3>")
 
-    df = preparar_df_analisis(df_resultado_global)
+    df = df_resultado_global.copy()
+    df.columns = [str(c).strip() for c in df.columns]
 
-    # Top productos, proveedores, tiendas (ignoramos vacíos)
-    top_prod = (
-        df[df["descripcion_analisis"] != ""]
-        .groupby("descripcion_analisis")
-        .size()
-        .sort_values(ascending=False)
-        .head(10)
-        .to_dict()
-    )
+    # Mapeo de columnas igual que siempre
+    columnas = {
+        "fecha": ["fecha de apertura", "fecha", "fecha_apertura"],
+        "ean": ["ean", "codigo ean"],
+        "lote": ["lote"],
+        "descripcion": ["descripcion", "producto", "nombre producto"],
+        "proveedor": ["razon social", "proveedor", "fabricante"],
+        "tienda": ["tienda", "sucursal", "codigo_sucursal"],
+        "mes": ["mes"],
+        "subtipo": ["sub tipo caso", "subtipo"],
+        "calidad": ["definicion calidad", "calidad"],
+    }
 
-    top_prov = (
-        df[df["proveedor_analisis"] != ""]
-        .groupby("proveedor_analisis")
-        .size()
-        .sort_values(ascending=False)
-        .head(10)
-        .to_dict()
-    )
+    for key, posibles in columnas.items():
+        col = buscar_col(df, posibles)
+        if col:
+            df.rename(columns={col: key}, inplace=True)
+        else:
+            df[key] = ""
 
-    top_tiendas = (
-        df[df["tienda_analisis"] != ""]
-        .groupby("tienda_analisis")
-        .size()
-        .sort_values(ascending=False)
-        .head(10)
-        .to_dict()
-    )
+    # Convertir todo a texto
+    for c in df.columns:
+        df[c] = df[c].fillna("").astype(str)
 
-    reclamos_mes = (
-        df[df["mes_analisis"] != ""]
-        .groupby("mes_analisis")
-        .size()
-        .to_dict()
-    )
+    # ================================================
+    # 🔍 Aplicar filtros del usuario (solo para análisis avanzado)
+    # ================================================
+    if ean:
+        df = df[df["ean"] == ean]
 
-    subtipos = (
-        df[df["subtipo_analisis"] != ""]
-        .groupby("subtipo_analisis")
-        .size()
-        .sort_values(ascending=False)
-        .head(10)
-        .to_dict()
-    )
+    if descripcion:
+        df = df[df["descripcion"] == descripcion]
+
+    if proveedor:
+        df = df[df["proveedor"] == proveedor]
+
+    if mes:
+        df = df[df["mes"] == mes]
+
+    if subtipo:
+        df = df[df["subtipo"] == subtipo]
+
+    if calidad:
+        df = df[df["calidad"] == calidad]
+
+    # ================================================
+    # ❌ Eliminar productos y proveedores nan o vacíos
+    # ================================================
+    df = df[(df["descripcion"] != "") & (df["descripcion"].str.lower() != "nan")]
+    df = df[(df["proveedor"] != "") & (df["proveedor"].str.lower() != "nan")]
+
+    # ================================================
+    # 📊 Crear métricas
+    # ================================================
+    top_prod = df.groupby("descripcion").size().sort_values(ascending=False).head(10)
+    top_prov = df.groupby("proveedor").size().sort_values(ascending=False).head(10)
+    top_tiendas = df.groupby("tienda").size().sort_values(ascending=False).head(10)
+    reclamos_mes = df.groupby("mes").size()
+    subtipos = df.groupby("subtipo").size().sort_values(ascending=False).head(10)
+
+    # ================================================
+    # 🎯 Filtros disponibles (para el HTML)
+    # ================================================
+    filtros = {
+        "ean": sorted(df_resultado_global["ean"].dropna().astype(str).unique()),
+        "descripcion": sorted(df_resultado_global["descripcion"].dropna().astype(str).unique()),
+        "proveedor": sorted(df_resultado_global["proveedor"].dropna().astype(str).unique()),
+        "mes": sorted(df_resultado_global["mes"].dropna().astype(str).unique()),
+        "subtipo": sorted(df_resultado_global["subtipo"].dropna().astype(str).unique()),
+        "calidad": sorted(df_resultado_global["calidad"].dropna().astype(str).unique()),
+    }
 
     return templates.TemplateResponse("analisis.html", {
         "request": request,
@@ -397,7 +431,8 @@ async def analisis(request: Request):
         "top_prov": top_prov,
         "top_tiendas": top_tiendas,
         "reclamos_mes": reclamos_mes,
-        "subtipos": subtipos
+        "subtipos": subtipos,
+        "filtros": filtros
     })
 
 
@@ -409,3 +444,4 @@ async def descargar():
     if os.path.exists(RESULT_PATH):
         return FileResponse(RESULT_PATH, filename="Informe_EANs_Tipificados.xlsx")
     return {"error": "No existe archivo"}
+
