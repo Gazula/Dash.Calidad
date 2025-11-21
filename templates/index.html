@@ -16,27 +16,25 @@
         <h1 class="mt-3 fw-bold text-primary">Reclamos 2025</h1>
     </div>
 
-    <!-- FORMULARIO DE CARGA -->
-    <div class="card shadow-sm p-4 mb-4">
+    <!-- FORMULARIO DE CARGA (más chico) -->
+    <div class="card shadow-sm p-4 mb-4 mx-auto" style="max-width: 480px;">
         <h4 class="mb-3">📄 Cargar archivo Excel</h4>
 
-        <form action="/analizar" method="post" enctype="multipart/form-data">
-            <input type="file" name="file" class="form-control mb-3" required>
+        <form action="/analizar" method="post" enctype="multipart/form-data" class="text-center">
+            <input type="file" name="file" class="form-control mb-3" style="max-width: 380px; margin: 0 auto;" required>
             <button type="submit" class="btn btn-primary w-100">Procesar archivo</button>
         </form>
     </div>
 
     <!-- BOTONES PRINCIPALES -->
     <div class="d-flex justify-content-center gap-3 mb-4">
-
-        <a href="/dashboard" class="btn btn-info btn-lg">
+        <a href="/dashboard" class="btn btn-primary btn-lg">
             📊 Ver Dashboard
         </a>
 
-        <a href="/analisis" class="btn btn-warning btn-lg">
+        <a href="/analisis" class="btn btn-outline-primary btn-lg">
             🔍 Análisis Avanzado
         </a>
-
     </div>
 
     {% if descarga_disponible %}
