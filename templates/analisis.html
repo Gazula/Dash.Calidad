@@ -10,146 +10,84 @@
 
 <div class="container mt-4">
 
-    <h2 class="text-center mb-4">Análisis Avanzado</h2>
-
-    <div class="text-center mb-3">
-        <a href="/dashboard" class="btn btn-secondary">Volver al Dashboard</a>
+    <div class="text-center mb-4">
+        <img src="/static/LogoCarre.png" style="height:70px;">
+        <h2 class="mt-3 text-info fw-bold">🔍 Análisis Avanzado</h2>
     </div>
 
-    <!-- ============================= -->
-    <!-- FILTROS                       -->
-    <!-- ============================= -->
-    <div class="card shadow mb-4">
-        <div class="card-header bg-primary text-white">
-            Filtros
+    <!-- TARJETAS -->
+    <div class="row g-4 mb-4">
+
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-primary">
+                <h5 class="fw-bold text-primary">Top Productos</h5>
+                <ul class="list-group">
+                    {% for k,v in top_prod.items() %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            {{ k }} <span class="badge bg-primary">{{ v }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
         </div>
-        <div class="card-body">
 
-            <form method="get">
-
-                <div class="row mb-3">
-                    <div class="col">
-                        <label class="form-label">EAN</label>
-                        <select class="form-select" name="ean">
-                            <option value="">Todos</option>
-                            {% for x in filtros_analisis.ean %}
-                                <option value="{{ x }}">{{ x }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="col">
-                        <label class="form-label">Producto</label>
-                        <select class="form-select" name="descripcion">
-                            <option value="">Todos</option>
-                            {% for x in filtros_analisis.descripcion %}
-                                <option value="{{ x }}">{{ x }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="col">
-                        <label class="form-label">Proveedor</label>
-                        <select class="form-select" name="proveedor">
-                            <option value="">Todos</option>
-                            {% for x in filtros_analisis.proveedor %}
-                                <option value="{{ x }}">{{ x }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="col">
-                        <label class="form-label">Mes</label>
-                        <select class="form-select" name="mes">
-                            <option value="">Todos</option>
-                            {% for x in filtros_analisis.mes %}
-                                <option value="{{ x }}">{{ x }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-
-                <div class="row mb-3">
-
-                    <div class="col">
-                        <label class="form-label">Tienda</label>
-                        <select class="form-select" name="tienda">
-                            <option value="">Todas</option>
-                            {% for x in filtros_analisis.tienda %}
-                                <option value="{{ x }}">{{ x }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="col">
-                        <label class="form-label">Calidad</label>
-                        <select class="form-select" name="calidad">
-                            <option value="">Todas</option>
-                            {% for x in filtros_analisis.calidad %}
-                                <option value="{{ x }}">{{ x }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="col">
-                        <label class="form-label">Sub Tipo Caso</label>
-                        <select class="form-select" name="subtipo">
-                            <option value="">Todos</option>
-                            {% for x in filtros_analisis.subtipo %}
-                                <option value="{{ x }}">{{ x }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                </div>
-
-                <div class="text-center">
-                    <button class="btn btn-primary">Aplicar filtros</button>
-                    <a href="/analisis" class="btn btn-danger">Resetear</a>
-                </div>
-
-            </form>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-danger">
+                <h5 class="fw-bold text-danger">Top Proveedores</h5>
+                <ul class="list-group">
+                    {% for k,v in top_prov.items() %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            {{ k }} <span class="badge bg-danger">{{ v }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
         </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-warning">
+                <h5 class="fw-bold text-warning">Top Tiendas</h5>
+                <ul class="list-group">
+                    {% for k,v in top_tiendas.items() %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            {{ k }} <span class="badge bg-warning text-dark">{{ v }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
     </div>
 
-    <!-- ========================================= -->
-    <!-- TARJETAS DEL ANÁLISIS AVANZADO           -->
-    <!-- ========================================= -->
+    <!-- METRICAS ADICIONALES -->
+    <div class="row g-4 mb-5">
 
-    <div class="card mb-4 shadow">
-        <div class="card-header bg-primary text-white">Top 10 Productos más reclamados</div>
-        <div class="card-body">
-            {% for prod, cant in top_prod.items() %}
-                <p><strong>{{ prod }}</strong>: {{ cant }}</p>
-            {% endfor %}
+        <div class="col-md-6">
+            <div class="card shadow-sm p-3 border-info">
+                <h5 class="fw-bold text-info">Reclamos por Mes</h5>
+                <ul class="list-group">
+                    {% for k,v in reclamos_mes.items() %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            {{ k }} <span class="badge bg-info">{{ v }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
         </div>
-    </div>
 
-    <div class="card mb-4 shadow">
-        <div class="card-header bg-primary text-white">Top 10 Proveedores con más reclamos</div>
-        <div class="card-body">
-            {% for prov, cant in top_prov.items() %}
-                <p><strong>{{ prov }}</strong>: {{ cant }}</p>
-            {% endfor %}
+        <div class="col-md-6">
+            <div class="card shadow-sm p-3 border-secondary">
+                <h5 class="fw-bold text-secondary">Sub Tipos de Caso</h5>
+                <ul class="list-group">
+                    {% for k,v in subtipos.items() %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            {{ k }} <span class="badge bg-secondary">{{ v }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
         </div>
-    </div>
 
-    <div class="card mb-4 shadow">
-        <div class="card-header bg-primary text-white">Reclamos por Mes</div>
-        <div class="card-body">
-            {% for mes, cant in reclamos_mes.items() %}
-                <p><strong>{{ mes }}</strong>: {{ cant }}</p>
-            {% endfor %}
-        </div>
-    </div>
-
-    <div class="card mb-4 shadow">
-        <div class="card-header bg-primary text-white">Sub Tipos de Caso más frecuentes</div>
-        <div class="card-body">
-            {% for st, cant in subtipos.items() %}
-                <p><strong>{{ st }}</strong>: {{ cant }}</p>
-            {% endfor %}
-        </div>
     </div>
 
 </div>
