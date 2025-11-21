@@ -21,8 +21,8 @@ def normalizar_col(col):
     c = str(col).strip().lower()
     c = c.replace(" ", "").replace("_", "")
     c = (c.replace("á", "a").replace("é", "e")
-           .replace("í", "i").replace("ó", "o")
-           .replace("ú", "u"))
+         .replace("í", "i").replace("ó", "o")
+         .replace("ú", "u"))
     return c
 
 def buscar_col(df, posibles):
@@ -39,7 +39,10 @@ def buscar_col(df, posibles):
 # ======================================================
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "descarga_disponible": False})
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, "descarga_disponible": False}
+    )
 
 
 # ======================================================
@@ -51,25 +54,25 @@ async def analizar(request: Request, file: UploadFile):
 
     contenido = await file.read()
     df = pd.read_excel(io.BytesIO(contenido))
-    
+
     df.columns = [str(c).strip() for c in df.columns]
     df_resultado_global = df.copy()
 
     df.to_excel(RESULT_PATH, index=False)
 
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "descarga_disponible": True
-    })
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, "descarga_disponible": True}
+    )
 
 
 # ======================================================
-# DASHBOARD PRINCIPAL
+# DASHBOARD (EXCLUYE reclamos sin lote)
 # ======================================================
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     global df_resultado_global
-    
+
     if df_resultado_global.empty and os.path.exists(RESULT_PATH):
         df_resultado_global = pd.read_excel(RESULT_PATH)
 
@@ -77,11 +80,10 @@ async def dashboard(request: Request):
         return HTMLResponse("<h3>No hay datos cargados.</h3>")
 
     df = df_resultado_global.copy()
-    df.columns = [str(c).strip() for c in df.columns]
 
-    # Mapeo general
+    # Normalización columnas
     columnas = {
-        "fecha": ["fecha de apertura", "fecha", "fecha_apertura", "fecha/hora de apertura"],
+        "fecha": ["fecha de apertura", "fecha", "fecha_apertura"],
         "ean": ["ean", "codigo ean", "cod ean"],
         "lote": ["lote", "lote nro.", "nro lote"],
         "descripcion": ["descripcion", "producto", "nombre producto"],
@@ -92,7 +94,6 @@ async def dashboard(request: Request):
         "calidad": ["definicion calidad", "calidad"],
     }
 
-    # Normalizar columnas
     for key, posibles in columnas.items():
         col = buscar_col(df, posibles)
         if col:
@@ -100,16 +101,13 @@ async def dashboard(request: Request):
         else:
             df[key] = ""
 
-    # Convertir todo a texto
     for c in df.columns:
         df[c] = df[c].fillna("").astype(str)
 
-    # EXCLUIR reclamos SIN lote
+    # EXCLUIR reclamos sin lote (solo dashboard)
     df = df[df["lote"] != ""].copy()
 
-    # ==================================================
-    # GENERACIÓN DE AVISOS Y ALERTAS
-    # ==================================================
+    # Agrupación de avisos/alertas
     resumen = df.groupby(["ean", "lote"]).size().reset_index(name="cantidad_tiendas")
 
     avisos = resumen[resumen["cantidad_tiendas"] == 2]
@@ -120,7 +118,6 @@ async def dashboard(request: Request):
     avisos = avisos.merge(info, on=["ean", "lote"], how="left")
     alertas = alertas.merge(info, on=["ean", "lote"], how="left")
 
-    # Filtros visibles en el dashboard
     filtros = {
         "meses": sorted(df["mes"].unique()),
         "subtipos": sorted(df["subtipo"].unique()),
@@ -128,17 +125,20 @@ async def dashboard(request: Request):
         "tiendas": sorted(df["tienda"].unique())
     }
 
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "total_reclamos": len(df),
-        "avisos": avisos.to_dict(orient="records"),
-        "alertas": alertas.to_dict(orient="records"),
-        "filtros": filtros
-    })
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {
+            "request": request,
+            "total_reclamos": len(df),
+            "avisos": avisos.to_dict(orient="records"),
+            "alertas": alertas.to_dict(orient="records"),
+            "filtros": filtros
+        }
+    )
 
 
 # ======================================================
-# ANÁLISIS AVANZADO
+# ANÁLISIS AVANZADO (USA TODA LA DATA)
 # ======================================================
 @app.get("/analisis", response_class=HTMLResponse)
 async def analisis(request: Request):
@@ -148,9 +148,8 @@ async def analisis(request: Request):
         return HTMLResponse("<h3>No hay datos cargados.</h3>")
 
     df = df_resultado_global.copy()
-    df.columns = [str(c).strip() for c in df.columns]
 
-    # Mapeo igual al dashboard
+    # Normalización columnas
     columnas = {
         "fecha": ["fecha de apertura", "fecha", "fecha_apertura"],
         "ean": ["ean", "codigo ean"],
@@ -173,17 +172,17 @@ async def analisis(request: Request):
     for c in df.columns:
         df[c] = df[c].fillna("").astype(str)
 
-    # EXCLUIR reclamos sin lote (mismo criterio que dashboard)
-    df = df[df["lote"] != ""].copy()
+    # NO excluir reclamos sin lote aquí
+    # (análisis debe usar 100% de los reclamos)
 
-    # Extraer datos agregados
+    # Métricas
     top_prod = df.groupby("descripcion").size().sort_values(ascending=False).head(10)
     top_prov = df.groupby("proveedor").size().sort_values(ascending=False).head(10)
     top_tiendas = df.groupby("tienda").size().sort_values(ascending=False).head(10)
     reclamos_mes = df.groupby("mes").size()
     subtipos = df.groupby("subtipo").size().sort_values(ascending=False).head(10)
 
-    # Filtros disponibles
+    # Filtros
     filtros = {
         "ean": sorted(df["ean"].unique()),
         "descripcion": sorted(df["descripcion"].unique()),
@@ -194,15 +193,18 @@ async def analisis(request: Request):
         "subtipo": sorted(df["subtipo"].unique()),
     }
 
-    return templates.TemplateResponse("analisis.html", {
-        "request": request,
-        "top_prod": top_prod,
-        "top_prov": top_prov,
-        "top_tiendas": top_tiendas,
-        "reclamos_mes": reclamos_mes,
-        "subtipos": subtipos,
-        "filtros_analisis": filtros
-    })
+    return templates.TemplateResponse(
+        "analisis.html",
+        {
+            "request": request,
+            "top_prod": top_prod,
+            "top_prov": top_prov,
+            "top_tiendas": top_tiendas,
+            "reclamos_mes": reclamos_mes,
+            "subtipos": subtipos,
+            "filtros_analisis": filtros
+        }
+    )
 
 
 # ======================================================
@@ -213,4 +215,3 @@ async def descargar():
     if os.path.exists(RESULT_PATH):
         return FileResponse(RESULT_PATH, filename="Informe_EANs_Tipificados.xlsx")
     return {"error": "No existe archivo"}
-
