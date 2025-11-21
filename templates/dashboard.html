@@ -20,7 +20,7 @@
 
         <div class="col-md-4">
             <div class="card shadow-sm p-4 text-center border-primary">
-                <h5 class="text-primary fw-bold">Total Reclamos</h5>
+                <h5 class="text-primary fw-bold">Total Reclamos (con lote)</h5>
                 <h2 class="fw-bold">{{ total_reclamos }}</h2>
             </div>
         </div>
@@ -47,7 +47,6 @@
         <h4 class="fw-bold mb-3">🔎 Filtros</h4>
 
         <form method="get" action="/dashboard">
-
             <div class="row g-3">
 
                 <div class="col-md-3">
@@ -55,7 +54,7 @@
                     <select name="mes" class="form-select">
                         <option value="">Todos</option>
                         {% for m in filtros.meses %}
-                            <option value="{{ m }}">{{ m }}</option>
+                            <option value="{{ m }}" {% if seleccion.mes == m %}selected{% endif %}>{{ m }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -65,17 +64,17 @@
                     <select name="subtipo" class="form-select">
                         <option value="">Todos</option>
                         {% for s in filtros.subtipos %}
-                            <option value="{{ s }}">{{ s }}</option>
+                            <option value="{{ s }}" {% if seleccion.subtipo == s %}selected{% endif %}>{{ s }}</option>
                         {% endfor %}
                     </select>
                 </div>
 
                 <div class="col-md-3">
-                    <label class="fw-bold">Calidad</label>
+                    <label class="fw-bold">Definición Calidad</label>
                     <select name="calidad" class="form-select">
-                        <option value="">Todos</option>
+                        <option value="">Todas</option>
                         {% for c in filtros.calidades %}
-                            <option value="{{ c }}">{{ c }}</option>
+                            <option value="{{ c }}" {% if seleccion.calidad == c %}selected{% endif %}>{{ c }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -85,14 +84,18 @@
                     <select name="tienda" class="form-select">
                         <option value="">Todas</option>
                         {% for t in filtros.tiendas %}
-                            <option value="{{ t }}">{{ t }}</option>
+                            <option value="{{ t }}" {% if seleccion.tienda == t %}selected{% endif %}>{{ t }}</option>
                         {% endfor %}
                     </select>
                 </div>
 
             </div>
 
-            <button class="btn btn-secondary mt-3">Aplicar filtros</button>
+            <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-secondary">Aplicar filtros</button>
+                <a href="/dashboard" class="btn btn-outline-secondary">Reset</a>
+            </div>
+
         </form>
 
     </div>
@@ -110,6 +113,7 @@
                     <th>Lote</th>
                     <th>Producto</th>
                     <th>Proveedor</th>
+                    <th>Cant. Tiendas</th>
                 </tr>
             </thead>
             <tbody>
@@ -119,6 +123,7 @@
                     <td>{{ a.lote }}</td>
                     <td>{{ a.descripcion }}</td>
                     <td>{{ a.proveedor }}</td>
+                    <td>{{ a.cantidad_tiendas }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -142,6 +147,7 @@
                     <th>Lote</th>
                     <th>Producto</th>
                     <th>Proveedor</th>
+                    <th>Cant. Tiendas</th>
                 </tr>
             </thead>
             <tbody>
@@ -151,6 +157,7 @@
                     <td>{{ a.lote }}</td>
                     <td>{{ a.descripcion }}</td>
                     <td>{{ a.proveedor }}</td>
+                    <td>{{ a.cantidad_tiendas }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
